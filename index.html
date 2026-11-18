@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LivCut Web — cortes automáticos com legenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0e0f14; --card:#171922; --line:#262a36; --txt:#eef0f6; --mut:#9aa1b2;
+          --acc:#ffe500; --acc2:#8b5cf6; --ok:#22c55e; --bad:#ef4444; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 Montserrat, system-ui, sans-serif; }
+  header { padding:28px 20px 8px; max-width:900px; margin:0 auto; }
+  h1 { margin:0; font-size:28px; font-weight:900; letter-spacing:-.5px; }
+  h1 span { color:var(--acc); }
+  header p { margin:6px 0 0; color:var(--mut); }
+  main { max-width:900px; margin:0 auto; padding:12px 20px 60px; display:grid; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .card h2 { margin:0 0 12px; font-size:16px; font-weight:800; display:flex; gap:10px; align-items:center; }
+  .num { background:var(--acc); color:#000; border-radius:50%; width:24px; height:24px;
+         display:inline-grid; place-items:center; font-size:13px; font-weight:900; }
+  label { display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; }
+  input[type=text], input[type=password], input[type=number], select {
+    width:100%; background:#0f1118; border:1px solid var(--line); color:var(--txt);
+    border-radius:10px; padding:10px 12px; font:inherit; }
+  .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  .drop { border:2px dashed #3a4052; border-radius:14px; padding:28px; text-align:center; cursor:pointer;
+          transition:.15s; color:var(--mut); }
+  .drop:hover, .drop.over { border-color:var(--acc); color:var(--txt); background:#1c1f2a; }
+  .drop strong { color:var(--txt); }
+  .hint { font-size:12.5px; color:var(--mut); margin-top:8px; }
+  .hint a { color:var(--acc); }
+  .check { display:flex; gap:8px; align-items:center; margin-top:12px; color:var(--txt); font-size:14px; }
+  button { font:inherit; font-weight:800; border:0; border-radius:12px; padding:14px 18px; cursor:pointer; }
+  .go { width:100%; background:var(--acc); color:#000; font-size:17px; }
+  .go:disabled { opacity:.45; cursor:not-allowed; }
+  .ghost { background:#232736; color:var(--txt); padding:9px 12px; font-size:13px; }
+  .bar { height:10px; background:#0f1118; border-radius:99px; overflow:hidden; margin-top:12px; }
+  .bar i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--acc2),var(--acc)); transition:width .3s; }
+  #status { font-weight:800; margin-top:10px; }
+  #log { margin-top:10px; max-height:180px; overflow:auto; font:12px/1.5 ui-monospace,monospace;
+         color:var(--mut); background:#0f1118; border-radius:10px; padding:10px; white-space:pre-wrap; }
+  .warn { background:#2a2410; border:1px solid #5c4d12; color:#ffe9a3; border-radius:10px; padding:10px 12px; font-size:13px; }
+  .err { background:#2a1214; border-color:#6b1d22; color:#ffc2c5; }
+  #results { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; }
+  .clip { background:#0f1118; border:1px solid var(--line); border-radius:12px; padding:10px; }
+  .clip video { width:100%; aspect-ratio:9/16; background:#000; border-radius:8px; }
+  .clip h3 { font-size:14px; margin:8px 0 4px; }
+  .clip p { font-size:12.5px; color:var(--mut); margin:4px 0; }
+  .clip .btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .clip a.dl { background:var(--acc); color:#000; text-decoration:none; font-weight:800; font-size:13px;
+               padding:9px 12px; border-radius:10px; }
+  .hidden { display:none !important; }
+  details summary { cursor:pointer; color:var(--mut); font-size:13px; margin-top:10px; }
+  #srcVideo { position:fixed; left:-9999px; width:320px; }
+  #stage { width:180px; aspect-ratio:9/16; border-radius:10px; background:#000; }
+  .live { display:flex; gap:16px; align-items:flex-start; margin-top:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Liv<span>Cut</span> Web</h1>
+  <p>Envie a gravação da gameplay e receba os shorts verticais com legenda, prontos para baixar.</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2><span class="num">1</span> Sua chave do Gemini</h2>
+    <input id="apiKey" type="password" placeholder="Cole aqui (fica salva só neste navegador)" autocomplete="off">
+    <div class="hint">Crie grátis em <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Sem chave, os cortes saem pelos picos de volume e sem legenda.</div>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">2</span> O vídeo</h2>
+    <div id="drop" class="drop">
+      <strong>Clique ou arraste o vídeo aqui</strong><br>
+      <span id="fileInfo">MP4 recomendado · até ~1 hora funciona bem</span>
+    </div>
+    <input id="file" type="file" accept="video/*" class="hidden">
+    <div class="hint">Está no Google Drive? Abra o link, clique em <b>Fazer download</b> e depois arraste o arquivo aqui. O vídeo não sai do seu computador: só o áudio vai para o Gemini transcrever.</div>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">3</span> Como quer os cortes</h2>
+    <div class="row">
+      <div>
+        <label for="layout">Formato</label>
+        <select id="layout">
+          <option value="blur">Jogo inteiro + fundo desfocado</option>
+          <option value="crop">Recorte do centro (tela cheia)</option>
+          <option value="split">Câmera em cima + jogo embaixo</option>
+        </select>
+      </div>
+      <div>
+        <label for="count">Quantos cortes</label>
+        <input id="count" type="number" min="1" max="20" value="6">
+      </div>
+      <div>
+        <label for="minSec">Duração mínima (s)</label>
+        <input id="minSec" type="number" min="10" max="120" value="20">
+      </div>
+      <div>
+        <label for="maxSec">Duração máxima (s)</label>
+        <input id="maxSec" type="number" min="15" max="180" value="50">
+      </div>
+    </div>
+    <div id="camBox" class="row hidden">
+      <div>
+        <label for="camCorner">Onde fica a câmera no vídeo</label>
+        <select id="camCorner">
+          <option value="tr">Canto superior direito</option>
+          <option value="tl">Canto superior esquerdo</option>
+          <option value="br">Canto inferior direito</option>
+          <option value="bl">Canto inferior esquerdo</option>
+        </select>
+      </div>
+      <div>
+        <label for="camSize">Tamanho da câmera (% da largura)</label>
+        <input id="camSize" type="number" min="10" max="50" value="25">
+      </div>
+    </div>
+    <label class="check"><input id="captions" type="checkbox" checked> Legenda palavra por palavra</label>
+    <label class="check"><input id="english" type="checkbox"> Gerar também a versão em inglês</label>
+    <details>
+      <summary>Avançado</summary>
+      <div class="row">
+        <div><label for="lang">Idioma da fala</label>
+          <select id="lang"><option value="português do Brasil">Português</option><option value="inglês">Inglês</option><option value="espanhol">Espanhol</option></select></div>
+        <div><label for="model">Modelo do Gemini</label><input id="model" type="text" value="gemini-flash-latest"></div>
+      </div>
+    </details>
+  </section>
+
+  <button id="go" class="go" disabled>Fazer os cortes</button>
+
+  <section id="progressCard" class="card hidden">
+    <h2>Processando</h2>
+    <div class="warn">Mantenha esta aba aberta e na frente enquanto os vídeos são gerados: cada corte é gravado em tempo real.</div>
+    <div id="status">Começando…</div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="live"><canvas id="stage" width="1080" height="1920"></canvas><div id="log"></div></div>
+  </section>
+
+  <section id="doneCard" class="card hidden">
+    <h2>Seus cortes</h2>
+    <div class="btns" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button id="zipAll" class="ghost">Baixar tudo (.zip)</button>
+      <button id="restart" class="ghost">Fazer outro vídeo</button>
+    </div>
+    <div id="results"></div>
+  </section>
+</main>
+<video id="srcVideo" playsinline preload="auto"></video>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const SR = 16000, HOP = 0.5, W = 1080, H = 1920;
+const YELLOW = "#FFE500";
+let videoFile = null, running = false, outputs = [];
+
+// ---------- interface ----------
+try { $("apiKey").value = localStorage.getItem("livcut_key") || ""; } catch (e) {}
+$("apiKey").addEventListener("change", () => { try { localStorage.setItem("livcut_key", $("apiKey").value.trim()); } catch (e) {} });
+$("layout").addEventListener("change", () => $("camBox").classList.toggle("hidden", $("layout").value !== "split"));
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) pickFile(e.dataTransfer.files[0]); };
+$("file").onchange = (e) => e.target.files[0] && pickFile(e.target.files[0]);
+function pickFile(f) {
+  videoFile = f;
+  $("fileInfo").textContent = `${f.name} · ${(f.size / 1e6).toFixed(0)} MB`;
+  $("go").disabled = false;
+}
+$("restart").onclick = () => location.reload();
+
+function log(msg) { const el = $("log"); el.textContent += msg + "\n"; el.scrollTop = el.scrollHeight; console.log(msg); }
+function status(msg, pct) { $("status").textContent = msg; if (pct != null) $("barFill").style.width = Math.max(0, Math.min(100, pct)) + "%"; }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---------- áudio ----------
+async function decodeAudio(file) {
+  const buf = await file.arrayBuffer();
+  const off = new OfflineAudioContext(1, SR, SR);
+  const ab = await off.decodeAudioData(buf);
+  const n = ab.length, mono = new Float32Array(n);
+  for (let c = 0; c < ab.numberOfChannels; c++) {
+    const d = ab.getChannelData(c);
+    for (let i = 0; i < n; i++) mono[i] += d[i] / ab.numberOfChannels;
+  }
+  return mono;
+}
+function excitement(mono) {
+  const n = Math.floor(SR * HOP), frames = Math.floor(mono.length / n), db = new Float32Array(frames);
+  for (let f = 0; f < frames; f++) {
+    let s = 0; for (let i = f * n; i < (f + 1) * n; i++) s += mono[i] * mono[i];
+    db[f] = 20 * Math.log10(Math.sqrt(s / n) + 1e-9);
+  }
+  const k = 4, sm = new Float32Array(frames);
+  for (let f = 0; f < frames; f++) {
+    let s = 0, c = 0;
+    for (let j = f - 2; j < f + 2; j++) { s += db[Math.min(frames - 1, Math.max(0, j))]; c++; }
+    sm[f] = s / c;
+  }
+  const sorted = Array.from(sm).sort((a, b) => a - b), med = sorted[sorted.length >> 1] || 0;
+  const dev = Array.from(sm, (v) => Math.abs(v - med)).sort((a, b) => a - b);
+  const mad = (dev[dev.length >> 1] || 0) * 1.4826 + 1e-6;
+  return Array.from(sm, (v) => (v - med) / mad);
+}
+function windowStats(z, a, b) {
+  const s = z.slice(Math.floor(a / HOP), Math.max(Math.floor(a / HOP) + 1, Math.floor(b / HOP)));
+  if (!s.length) return { audio_peak_z: 0, loud_seconds: 0 };
+  return { audio_peak_z: +Math.max(...s).toFixed(1), loud_seconds: +(s.filter((v) => v > 2).length * HOP).toFixed(1) };
+}
+function peakMoments(z, top, minGap) {
+  const idx = z.map((v, i) => i).sort((a, b) => z[b] - z[a]), picked = [];
+  for (const i of idx) {
+    if (z[i] < 2 || picked.length >= top) break;
+    if (picked.every((j) => Math.abs(i - j) * HOP >= minGap)) picked.push(i);
+  }
+  return picked.sort((a, b) => a - b).map((i) => ({ t: i * HOP, z: +z[i].toFixed(1) }));
+}
+function wavBase64(mono, from, to) {
+  const a = Math.floor(from * SR), b = Math.min(mono.length, Math.floor(to * SR)), n = b - a;
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); str(8, "WAVE"); str(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, SR, true); v.setUint32(28, SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, mono[a + i])) * 32767, true);
+  return new Promise((res) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(",")[1]);
+    r.readAsDataURL(new Blob([buf], { type: "audio/wav" }));
+  });
+}
+
+// ---------- Gemini ----------
+async function gemini(prompt, audioB64) {
+  const key = $("apiKey").value.trim(), model = $("model").value.trim() || "gemini-flash-latest";
+  const parts = [{ text: prompt }];
+  if (audioB64) parts.push({ inline_data: { mime_type: "audio/wav", data: audioB64 } });
+  let wait = 15000;
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    let res;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseMimeType: "application/json" } }),
+      });
+    } catch (e) {
+      if (location.protocol === "file:")
+        throw new Error("O Gemini não aceita conexões de um arquivo aberto direto do computador. " +
+                        "Abra o LivCut pelo endereço do site (GitHub Pages) em vez do arquivo .html.");
+      if (attempt === 6) throw new Error("Sem conexão com o Gemini: " + e.message);
+      log(`Gemini: falha de rede, tentando de novo em ${wait / 1000}s`); await sleep(wait); wait *= 2; continue;
+    }
+    if (res.status === 429 || res.status >= 500) {
+      if (attempt === 6) throw new Error(`Gemini recusou (${res.status}). Limite do plano grátis: espere alguns minutos e tente de novo.`);
+      log(`Gemini: limite/instabilidade (${res.status}). Esperando ${wait / 1000}s…`); await sleep(wait); wait = Math.min(wait * 2, 120000); continue;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = data.error?.message || res.statusText;
+      if (res.status === 400 && /API key/i.test(msg)) throw new Error("Chave do Gemini inválida. Confira o passo 1.");
+      throw new Error(`Gemini (${res.status}): ${msg}`);
+    }
+    const text = (data.candidates?.[0]?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || "").join("");
+    try {
+      const m = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      return JSON.parse(m ? m[1] : text);
+    } catch (e) {
+      if (attempt === 6) throw new Error("O Gemini devolveu uma resposta inválida.");
+      log("Gemini: resposta fora do formato, pedindo de novo…");
+    }
+  }
+}
+
+const TRANSCRIBE_PROMPT = (lang, dur) => `Transcreva a fala deste áudio (${lang}). É um trecho de ${dur.toFixed(0)} segundos de gameplay com narração.
+Ignore música e efeitos do jogo sem fala. Divida em frases curtas de no máximo 8 palavras.
+Para cada frase, informe start e end em SEGUNDOS contados do início DESTE áudio (número com 1 casa decimal, entre 0 e ${dur.toFixed(0)}).
+Se não houver fala, devolva a lista vazia.
+Responda SOMENTE com JSON: {"segments":[{"start":0.0,"end":2.4,"text":"..."}]}`;
+
+const SCORE_PROMPT = (lang, dur, wins) => `Você é editor de shorts de games (TikTok, Reels, YouTube Shorts) para o canal da Liv (Lívia Cora), gamer.
+Abaixo estão janelas de um vídeo de gameplay com narração.
+Para CADA janela, dê uma nota inteira de 0 a 100 dizendo o quanto ela renderia um short viral sozinha, para quem nunca viu o canal.
+- Critério principal: os 2 primeiros segundos prendem? Reação forte, susto, risada, frase de impacto, fail, jogada absurda, perseguição, explosão, final inesperado.
+- audio_peak_z mede o pico de volume do jogo (acima de 3 = muito alto) e loud_seconds quantos segundos ficaram altos. Use como sinal de ação, mesmo com pouca fala.
+- Tutorial longo, menu, loading, silêncio, "fala galera / se inscreve": nota abaixo de 30.
+- Espalhe as notas de 0 a 100. Reserve 70+ para o que realmente passa no teste.
+Idioma da fala: ${lang}. Duração total: ${dur.toFixed(0)}s.
+JANELAS:
+${JSON.stringify(wins)}
+Responda SOMENTE com JSON: {"windows":[{"id":"<id>","score":<0-100>,"reason":"<motivo curto>"}]}`;
+
+const DETAIL_PROMPT = (dur, wins, minC, maxC, minS, maxS) => `Você é editor de shorts de games para o canal da Liv (Lívia Cora).
+Abaixo estão as melhores janelas de um vídeo de gameplay (fala com tempo em segundos e pico de volume do jogo).
+Extraia de ${minC} a ${maxC} shorts. Regras:
+- Cada short tem entre ${minS} e ${maxS} segundos e fica DENTRO da sua janela. Um short por janela, no máximo.
+- Comece no gancho (a frase ou ação mais forte), não em "então", "e aí" ou respiração.
+- Termine depois do desfecho, nunca no meio de uma frase.
+- title: título curto e chamativo em português do Brasil (até 60 caracteres, sem clickbait mentiroso).
+- hook: texto de tela para os 2 primeiros segundos (até 6 palavras).
+- description: legenda do post com 3 a 5 hashtags.
+Duração total do vídeo: ${dur.toFixed(0)}s.
+JANELAS:
+${JSON.stringify(wins)}
+Responda SOMENTE com JSON: {"shorts":[{"window_id":"<id>","start":<seg>,"end":<seg>,"score":<0-100>,"title":"...","hook":"...","description":"...","reason":"..."}]}`;
+
+const TRANSLATE_PROMPT = (clip, lines) => `Traduza para inglês (EUA) as legendas de um short de games da streamer Liv.
+Mantenha gírias de gamer naturais, frases curtas e o mesmo tom. Devolva exatamente um item por id.
+TITULO: ${clip.title || ""}
+GANCHO: ${clip.hook || ""}
+DESCRICAO: ${clip.description || ""}
+LEGENDAS: ${JSON.stringify(lines.map((l, i) => ({ i, text: l.text })))}
+Responda SOMENTE com JSON: {"title":"...","hook":"...","description":"...","lines":[{"i":0,"text":"..."}]}`;
+
+// ---------- transcrição ----------
+function segmentsToWords(segs) {
+  const words = [];
+  for (const s of segs) {
+    const toks = String(s.text || "").trim().split(/\s+/).filter(Boolean);
+    if (!toks.length) continue;
+    const weights = toks.map((t) => t.length + 2), total = weights.reduce((a, b) => a + b, 0);
+    let t = s.start;
+    toks.forEach((tok, i) => {
+      const d = (s.end - s.start) * weights[i] / total;
+      words.push({ w: tok, s: +t.toFixed(2), e: +(t + d * 0.92).toFixed(2), seg: s });
+      t += d;
+    });
+  }
+  return words;
+}
+async function transcribe(mono, duration, lang, onProgress) {
+  const CH = 240, segs = [];
+  const n = Math.ceil(duration / CH);
+  for (let i = 0; i < n; i++) {
+    const a = i * CH, b = Math.min(duration, a + CH);
+    onProgress(i, n);
+    const resp = await gemini(TRANSCRIBE_PROMPT(lang, b - a), await wavBase64(mono, a, b));
+    let got = 0;
+    for (const s of resp?.segments || []) {
+      let st = Number(s.start), en = Number(s.end);
+      if (!isFinite(st) || !s.text) continue;
+      if (!isFinite(en) || en <= st) en = st + 1.5;
+      st = Math.max(0, Math.min(b - a, st)); en = Math.max(st + 0.3, Math.min(b - a, en));
+      segs.push({ start: a + st, end: a + en, text: String(s.text).trim() }); got++;
+    }
+    log(`Transcrição ${i + 1}/${n}: ${got} frases`);
+    if (i < n - 1) await sleep(3000);
+  }
+  segs.sort((x, y) => x.start - y.start);
+  for (let i = 0; i < segs.length - 1; i++) segs[i].end = Math.min(segs[i].end, segs[i + 1].start);
+  return segs;
+}
+
+// ---------- seleção ----------
+function buildWindows(words, z, duration, size, stride) {
+  const wins = [];
+  for (let t = 0, n = 0; t < duration; t += stride, n++) {
+    const end = Math.min(duration, t + size);
+    if (end - t < 20 && wins.length) { wins[wins.length - 1].end = +end.toFixed(1); break; }
+    const ws = words.filter((w) => w.s >= t && w.s < end);
+    const text = ws.map((w, i) => (i % 8 === 0 ? `[${w.s.toFixed(1)}] ` : "") + w.w).join(" ") || "(sem fala)";
+    wins.push({ id: "w" + n, start: +t.toFixed(1), end: +end.toFixed(1), ...windowStats(z, t, end), text });
+  }
+  return wins;
+}
+function snap(start, end, words, duration, minS, maxS) {
+  const inside = words.filter((w) => w.e > start - 0.3 && w.s < end + 0.3);
+  if (inside.length) { start = inside[0].s; end = inside[inside.length - 1].e; }
+  start = Math.max(0, start - 0.15); end = Math.min(duration, end + 0.4);
+  if (end - start > maxS) {
+    end = start + maxS;
+    const cut = words.filter((w) => w.e > start && w.e <= end);
+    if (cut.length) end = cut[cut.length - 1].e + 0.2;
+  }
+  if (end - start < minS) end = Math.min(duration, start + minS);
+  return [+start.toFixed(2), +end.toFixed(2)];
+}
+function dedupe(clips) {
+  const kept = [];
+  for (const c of [...clips].sort((a, b) => (b.score || 0) - (a.score || 0))) {
+    const ov = kept.some((k) => Math.min(c.end, k.end) - Math.max(c.start, k.start) > 0.5 * Math.min(c.end - c.start, k.end - k.start));
+    if (!ov) kept.push(c);
+  }
+  return kept;
+}
+async function selectWithAI(words, z, duration, lang, maxC, minS, maxS) {
+  const wins = buildWindows(words, z, duration, Math.max(90, maxS * 1.5), Math.max(60, maxS));
+  log(`Seleção: ${wins.length} janelas para avaliar`);
+  const scores = {};
+  for (let i = 0; i < wins.length; i += 10) {
+    const r = await gemini(SCORE_PROMPT(lang, duration, wins.slice(i, i + 10)));
+    for (const it of r?.windows || []) scores[String(it.id)] = +it.score || 0;
+    if (i + 10 < wins.length) await sleep(2000);
+  }
+  wins.forEach((w) => (w.score = scores[w.id] || 0));
+  const ranked = [...wins].sort((a, b) => b.score - a.score), good = ranked.filter((w) => w.score >= 35);
+  const shortlist = (good.length >= 2 ? good : ranked.slice(0, 3)).slice(0, maxC + 3);
+  log("Melhores janelas: " + shortlist.map((w) => `${w.id}=${w.score}`).join(", "));
+  const r = await gemini(DETAIL_PROMPT(duration, shortlist.map(({ score, ...w }) => w),
+    Math.max(1, Math.floor(Math.min(maxC, shortlist.length) / 2)), maxC, minS, maxS));
+  const byId = Object.fromEntries(wins.map((w) => [w.id, w])), clips = [];
+  for (const s of r?.shorts || []) {
+    let st = Number(s.start), en = Number(s.end);
+    if (!isFinite(st) || !isFinite(en)) continue;
+    const w = byId[String(s.window_id)];
+    if (w) { st = Math.max(st, w.start); en = Math.min(en, w.end); }
+    if (en - st < 5) continue;
+    [st, en] = snap(st, en, words, duration, minS, maxS);
+    clips.push({ ...s, start: st, end: en, score: +s.score || 0 });
+  }
+  return dedupe(clips).slice(0, maxC).sort((a, b) => a.start - b.start);
+}
+function selectByAudio(words, z, duration, maxC, minS, maxS) {
+  const target = (minS + maxS) / 2;
+  return dedupe(peakMoments(z, maxC, maxS).map((p) => {
+    let st = Math.max(0, p.t - target * 0.4), en = Math.min(duration, st + target);
+    [st, en] = snap(st, en, words, duration, minS, maxS);
+    return { start: st, end: en, score: Math.min(100, Math.round(p.z * 15)), title: `Momento ${Math.round(p.t)}s`, hook: "", description: "", reason: `pico de áudio z=${p.z}` };
+  })).sort((a, b) => a.start - b.start);
+}
+
+// ---------- legendas ----------
+function chunkWords(words, a, b) {
+  const inside = words.filter((w) => w.e > a && w.s < b), chunks = [];
+  let cur = [];
+  for (const w of inside) {
+    const r = { w: w.w, s: Math.max(0, w.s - a), e: Math.min(b, w.e) - a };
+    const gap = cur.length ? r.s - cur[cur.length - 1].e : 0;
+    if (cur.length && (cur.length >= 3 || gap > 0.6 || /[.?!,]$/.test(cur[cur.length - 1].w))) { chunks.push(cur); cur = []; }
+    cur.push(r);
+  }
+  if (cur.length) chunks.push(cur);
+  return chunks;
+}
+function sentenceLines(words, a, b) {
+  const lines = [], bySeg = new Map();
+  for (const w of words.filter((w) => w.e > a && w.s < b)) {
+    if (!bySeg.has(w.seg)) bySeg.set(w.seg, []);
+    bySeg.get(w.seg).push(w);
+  }
+  for (const ws of bySeg.values())
+    lines.push({ s: Math.max(0, ws[0].s - a), e: Math.min(b, ws[ws.length - 1].e) - a + 0.2, text: ws.map((w) => w.w).join(" ") });
+  for (let i = 0; i < lines.length - 1; i++) lines[i].e = Math.min(lines[i].e, lines[i + 1].s);
+  return lines;
+}
+
+// ---------- desenho ----------
+const FONT = "Montserrat, 'Arial Black', Arial, sans-serif";
+function drawRegion(ctx, v, sx, sy, sw, sh, dx, dy, dw, dh, alignX = 0.5) {
+  // preenche (dx,dy,dw,dh) com a região da fonte, cortando o excesso (cover)
+  const sr = sw / sh, dr = dw / dh;
+  if (sr > dr) { const nw = sh * dr; sx += (sw - nw) * alignX; sw = nw; }
+  else { const nh = sw / dr; sy += (sh - nh) / 2; sh = nh; }
+  ctx.drawImage(v, sx, sy, sw, sh, dx, dy, dw, dh);
+}
+const small = document.createElement("canvas"); small.width = 54; small.height = 96;
+function drawFrame(ctx, v, opt) {
+  const vw = v.videoWidth, vh = v.videoHeight;
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+  if (!vw) return;
+  if (opt.layout === "crop") {
+    drawRegion(ctx, v, 0, 0, vw, vh, 0, 0, W, H);
+  } else if (opt.layout === "split") {
+    const cw = vw * opt.camSize, ch = Math.min(vh, cw * 0.75);
+    const cx = opt.camCorner[1] === "r" ? vw - cw : 0, cy = opt.camCorner[0] === "b" ? vh - ch : 0;
+    drawRegion(ctx, v, cx, cy, cw, ch, 0, 0, W, 640);
+    drawRegion(ctx, v, 0, 0, vw, vh, 0, 640, W, H - 640);
+    ctx.fillStyle = YELLOW; ctx.fillRect(0, 636, W, 8);
+  } else {
+    const sctx = small.getContext("2d");
+    drawRegion(sctx, v, 0, 0, vw, vh, 0, 0, 54, 96);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    ctx.globalAlpha = 0.75; ctx.drawImage(small, 0, 0, W, H); ctx.globalAlpha = 1;
+    const fh = W * vh / vw;
+    ctx.drawImage(v, 0, 0, vw, vh, 0, (H - fh) / 2, W, fh);
+  }
+}
+function drawCaption(ctx, chunks, t) {
+  let ci = -1, wi = -1;
+  for (let c = 0; c < chunks.length && ci < 0; c++) {
+    const ch = chunks[c];
+    for (let i = 0; i < ch.length; i++) {
+      const until = i + 1 < ch.length ? ch[i + 1].s : ch[i].e + 0.15;
+      if (t >= ch[i].s && t < until) { ci = c; wi = i; break; }
+    }
+  }
+  if (ci < 0) return;
+  const words = chunks[ci].map((w) => w.w.toUpperCase());
+  let size = 86;
+  ctx.font = `900 ${size}px ${FONT}`;
+  const space = () => ctx.measureText(" ").width;
+  let total = words.reduce((s, w) => s + ctx.measureText(w).width, 0) + space() * (words.length - 1);
+  if (total > 980) { size = Math.floor(size * 980 / total); ctx.font = `900 ${size}px ${FONT}`;
+    total = words.reduce((s, w) => s + ctx.measureText(w).width, 0) + space() * (words.length - 1); }
+  let x = (W - total) / 2; const y = H - 560;
+  ctx.textBaseline = "alphabetic"; ctx.lineJoin = "round"; ctx.lineWidth = size * 0.18; ctx.strokeStyle = "#000";
+  words.forEach((w, i) => {
+    ctx.strokeText(w, x, y);
+    ctx.fillStyle = i === wi ? YELLOW : "#fff"; ctx.fillText(w, x, y);
+    x += ctx.measureText(w).width + space();
+  });
+}
+function drawLine(ctx, lines, t) {
+  const ln = lines.find((l) => t >= l.s && t < l.e);
+  if (!ln) return;
+  ctx.font = `900 64px ${FONT}`; ctx.textAlign = "center"; ctx.lineJoin = "round"; ctx.lineWidth = 12; ctx.strokeStyle = "#000";
+  const rows = wrap(ctx, ln.text.toUpperCase(), 960);
+  rows.forEach((r, i) => { const y = H - 560 - (rows.length - 1 - i) * 76; ctx.strokeText(r, W / 2, y); ctx.fillStyle = "#fff"; ctx.fillText(r, W / 2, y); });
+  ctx.textAlign = "left";
+}
+function wrap(ctx, text, maxW) {
+  const rows = []; let cur = "";
+  for (const w of text.split(" ")) {
+    const t = cur ? cur + " " + w : w;
+    if (ctx.measureText(t).width > maxW && cur) { rows.push(cur); cur = w; } else cur = t;
+  }
+  if (cur) rows.push(cur);
+  return rows;
+}
+function drawHook(ctx, hook, t, y0) {
+  if (!hook || t > 2.6) return;
+  ctx.font = `900 62px ${FONT}`; ctx.textAlign = "center";
+  const rows = wrap(ctx, hook.toUpperCase(), 900), lh = 74;
+  const bw = Math.max(...rows.map((r) => ctx.measureText(r).width)) + 56, bh = rows.length * lh + 30;
+  ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.roundRect((W - bw) / 2, y0, bw, bh, 18); ctx.fill();
+  ctx.fillStyle = "#000"; rows.forEach((r, i) => ctx.fillText(r, W / 2, y0 + 20 + (i + 0.78) * lh));
+  ctx.textAlign = "left";
+}
+
+// ---------- gravação ----------
+let actx = null, mediaSrc = null, audioDest = null;
+function pickMime() {
+  // H.264 primeiro (o formato que Instagram, TikTok e YouTube mais aceitam).
+  // Windows/Mac costumam gravar áudio AAC; no Linux o Chrome só grava Opus.
+  const opts = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1.4D4028,mp4a.40.2",
+                "video/mp4;codecs=avc1.640028,opus", "video/mp4;codecs=avc1.4D4028,opus",
+                "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+  return opts.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || "";
+}
+async function seek(v, t) {
+  await new Promise((res) => { const on = () => { v.removeEventListener("seeked", on); res(); }; v.addEventListener("seeked", on); v.currentTime = t; });
+}
+async function renderClip(v, clip, opt, overlay, onProg) {
+  const canvas = $("stage"), ctx = canvas.getContext("2d");
+  const stream = canvas.captureStream(30);
+  audioDest.stream.getAudioTracks().forEach((tr) => stream.addTrack(tr));
+  const mime = pickMime();
+  const rec = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 160_000 });
+  const parts = [];
+  rec.ondataavailable = (e) => e.data.size && parts.push(e.data);
+  const stopped = new Promise((res) => (rec.onstop = res));
+  await seek(v, clip.start);
+  drawFrame(ctx, v, opt); overlay(ctx, 0);
+  rec.start(1000);
+  await v.play();
+  await new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; v.pause(); resolve(); };
+    const tick = () => {
+      if (done) return;
+      const t = v.currentTime - clip.start;
+      drawFrame(ctx, v, opt); overlay(ctx, t);
+      onProg(Math.min(1, t / (clip.end - clip.start)));
+      if (v.currentTime >= clip.end || v.ended) return finish();
+      v.requestVideoFrameCallback ? v.requestVideoFrameCallback(tick) : requestAnimationFrame(tick);
+    };
+    v.addEventListener("ended", finish, { once: true });
+    tick();
+  });
+  rec.stop(); await stopped;
+  stream.getVideoTracks().forEach((tr) => tr.stop());
+  const type = (mime || "video/webm").split(";")[0];
+  return { blob: new Blob(parts, { type }), ext: type.includes("mp4") ? "mp4" : "webm" };
+}
+
+// ---------- zip (sem compressão) ----------
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function makeZip(files) {
+  const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+  for (const f of files) {
+    const data = new Uint8Array(await f.blob.arrayBuffer()), name = enc.encode(f.name), crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
+    h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true);
+    parts.push(h.buffer, name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+    c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+    central.push(c.buffer, name);
+    offset += 30 + name.length + data.length;
+  }
+  const size = central.reduce((s, p) => s + (p.byteLength ?? p.length), 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, size, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
+}
+function download(blob, name) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+const slug = (s) => (s || "corte").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "").toLowerCase().slice(0, 40) || "corte";
+
+// ---------- resultados ----------
+function addResult(clip, n, file, en) {
+  const box = document.createElement("div"); box.className = "clip";
+  const url = URL.createObjectURL(file.blob);
+  box.innerHTML = `<video controls playsinline src="${url}"></video>
+    <h3></h3><p class="hk"></p><p class="ds"></p><p class="mt"></p><div class="btns"></div>`;
+  box.querySelector("h3").textContent = `${String(n).padStart(2, "0")}. ${clip.title || "Corte"}${en ? " (EN)" : ""}`;
+  box.querySelector(".hk").textContent = (en ? en.hook : clip.hook) ? `Gancho: ${en ? en.hook : clip.hook}` : "";
+  box.querySelector(".ds").textContent = en ? en.description || "" : clip.description || "";
+  box.querySelector(".mt").textContent = `${Math.round(clip.end - clip.start)}s · de ${fmt(clip.start)} a ${fmt(clip.end)} · nota ${clip.score ?? "-"}`;
+  const btns = box.querySelector(".btns");
+  const a = document.createElement("a"); a.className = "dl"; a.href = url; a.download = file.name; a.textContent = "Baixar vídeo"; btns.append(a);
+  const cp = document.createElement("button"); cp.className = "ghost"; cp.textContent = "Copiar legenda do post";
+  cp.onclick = async () => { try { await navigator.clipboard.writeText(`${en ? en.title : clip.title}\n\n${en ? en.description : clip.description}`); cp.textContent = "Copiado!"; } catch (e) { cp.textContent = "Não deu para copiar"; } };
+  btns.append(cp);
+  $("results").append(box);
+}
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+$("zipAll").onclick = async () => {
+  $("zipAll").textContent = "Montando .zip…";
+  const report = outputs.filter((o) => o.clip).map((o) => `${o.name}\n${o.clip.title || ""}\nGancho: ${o.clip.hook || ""}\n${o.clip.description || ""}\n`).join("\n");
+  const zip = await makeZip([...outputs, { name: "relatorio.txt", blob: new Blob([report], { type: "text/plain" }) }]);
+  download(zip, `cortes_${slug(videoFile?.name.replace(/\.[^.]+$/, ""))}.zip`);
+  $("zipAll").textContent = "Baixar tudo (.zip)";
+};
+
+// ---------- fluxo principal ----------
+$("go").onclick = async () => {
+  if (running || !videoFile) return;
+  running = true; $("go").disabled = true; outputs = [];
+  try { actx = actx || new AudioContext(); await actx.resume(); } catch (e) {}
+  let wakeLock = null; try { wakeLock = await navigator.wakeLock?.request("screen"); } catch (e) {}
+  $("progressCard").classList.remove("hidden"); $("doneCard").classList.add("hidden"); $("results").innerHTML = "";
+  $("progressCard").scrollIntoView({ behavior: "smooth" });
+  const key = $("apiKey").value.trim(), useAI = !!key;
+  try { localStorage.setItem("livcut_key", key); } catch (e) {}
+  const opt = { layout: $("layout").value, camCorner: $("camCorner").value, camSize: Math.max(0.1, Math.min(0.5, (+$("camSize").value || 25) / 100)) };
+  const maxC = Math.max(1, Math.min(20, +$("count").value || 6));
+  const minS = Math.max(5, +$("minSec").value || 20), maxS = Math.max(minS + 5, +$("maxSec").value || 50);
+  const lang = $("lang").value, wantCaps = $("captions").checked, wantEN = $("english").checked && useAI;
+  try {
+    status("Lendo o áudio do vídeo…", 3);
+    const mono = await decodeAudio(videoFile).catch((e) => { throw new Error("Não consegui ler o áudio deste arquivo. Use um MP4 (H.264/AAC). Detalhe: " + e.message); });
+    const duration = mono.length / SR;
+    log(`Vídeo: ${videoFile.name} · ${(duration / 60).toFixed(1)} min`);
+    const z = excitement(mono);
+    log("Picos de volume: " + peakMoments(z, 8, 25).map((p) => `${fmt(p.t)}(z${p.z})`).join(", "));
+
+    let words = [];
+    if (useAI) {
+      const segs = await transcribe(mono, duration, lang, (i, n) => status(`Transcrevendo a fala (${i + 1}/${n})…`, 5 + 35 * i / n));
+      words = segmentsToWords(segs);
+      log(`Transcrição: ${segs.length} frases, ${words.length} palavras`);
+    } else log("Sem chave do Gemini: cortes pelos picos de volume, sem legenda.");
+
+    status("Escolhendo os melhores momentos…", 42);
+    let clips = useAI ? await selectWithAI(words, z, duration, lang, maxC, minS, maxS) : [];
+    if (!clips.length) { if (useAI) log("A IA não devolveu cortes; usando os picos de volume."); clips = selectByAudio(words, z, duration, maxC, minS, maxS); }
+    if (!clips.length) throw new Error("Não encontrei momentos para cortar neste vídeo.");
+    log(`${clips.length} cortes escolhidos.`);
+
+    const v = $("srcVideo");
+    v.src = URL.createObjectURL(videoFile);
+    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error("O navegador não consegue reproduzir este vídeo. Use MP4 (H.264).")); });
+    if (!mediaSrc) { mediaSrc = actx.createMediaElementSource(v); audioDest = actx.createMediaStreamDestination(); mediaSrc.connect(audioDest); }
+    try { await document.fonts.load(`900 86px Montserrat`); } catch (e) {}
+
+    const jobs = clips.length * (wantEN ? 2 : 1);
+    let job = 0;
+    $("doneCard").classList.remove("hidden");
+    for (let n = 1; n <= clips.length; n++) {
+      const clip = clips[n - 1], base = `${String(n).padStart(2, "0")}_${slug(clip.title)}`;
+      const chunks = wantCaps ? chunkWords(words, clip.start, clip.end) : [];
+      const hookY = opt.layout === "split" ? 600 : 140;
+      const prog = (label) => (f) => status(`Gravando corte ${n}/${clips.length}${label}…`, 45 + 55 * (job + f) / jobs);
+      const out = await renderClip(v, clip, opt, (ctx, t) => { drawCaption(ctx, chunks, t); drawHook(ctx, clip.hook, t, hookY); }, prog(""));
+      const file = { name: `${base}.${out.ext}`, blob: out.blob, clip };
+      outputs.push(file); addResult(clip, n, file); job++;
+      if (wantEN) {
+        const lines = sentenceLines(words, clip.start, clip.end);
+        const tr = await gemini(TRANSLATE_PROMPT(clip, lines)).catch((e) => (log("Tradução falhou: " + e.message), null));
+        if (tr) {
+          const byI = Object.fromEntries((tr.lines || []).map((l) => [l.i, l.text]));
+          const enLines = wantCaps ? lines.map((l, i) => ({ ...l, text: byI[i] || l.text })) : [];
+          const en = { title: tr.title || clip.title, hook: tr.hook || "", description: tr.description || "" };
+          const o2 = await renderClip(v, clip, opt, (ctx, t) => { drawLine(ctx, enLines, t); drawHook(ctx, en.hook, t, hookY); }, prog(" (inglês)"));
+          const f2 = { name: `${base}_EN.${o2.ext}`, blob: o2.blob, clip: { ...clip, ...en } };
+          outputs.push(f2); addResult(clip, n, f2, en);
+        }
+        job++;
+      }
+    }
+    status(`Pronto! ${outputs.length} vídeo(s) gerados.`, 100);
+    $("doneCard").scrollIntoView({ behavior: "smooth" });
+  } catch (e) {
+    status("Parou: " + e.message, null);
+    $("status").insertAdjacentHTML("afterend", `<div class="warn err" style="margin-top:8px"></div>`);
+    $("status").nextElementSibling.textContent = e.message;
+    log("ERRO: " + (e.stack || e.message));
+  } finally {
+    running = false; $("go").disabled = false;
+    try { wakeLock && wakeLock.release(); } catch (e) {}
+  }
+};
+document.addEventListener("visibilitychange", () => { if (document.hidden && running) log("⚠️ A aba ficou em segundo plano: volte para ela para a gravação não falhar."); });
+</script>
+</body>
+</html>
